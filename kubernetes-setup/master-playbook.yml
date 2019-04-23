@@ -3,3 +3,25 @@
   become: true
   roles:
     - docker
+    - kubelet
+  tasks:
+    - name: Check if kubeadm has already run
+      stat:
+        path: "/etc/kubernetes/pki/ca.key"
+      register: kubeadm_ca
+
+    - name: Initialize the Kubernetes cluster using kubeadm
+      command: kubeadm init --apiserver-advertise-address="192.168.50.10" --apiserver-cert-extra-sans="192.168.50.10"  --node-name k8s-master --pod-network-cidr=192.168.0.0/16
+      when: not kubeadm_ca.stat.exists
+      run_once: yes
+
+    - name: Setup kubeconfig for vagrant user
+      command: "{{ item }}"
+      with_items:
+      - mkdir -p /home/vagrant/.kube
+      - cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+      - chown vagrant:vagrant /home/vagrant/.kube/config
+    
+    - name: Install calico pod network
+      become: false
+      command: kubectl create -f https://docs.projectcalico.org/v3.4/getting-started/kubernetes/installation/hosted/calico.yaml
